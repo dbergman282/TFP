@@ -62,7 +62,7 @@ if uploaded_file:
                 "Number of Desired Teams: ",
                 min_value=1,
                 max_value=40,
-                value=5,
+                value=2,
                 step=1,
                 help="Enter the number of desired teams."
             )
