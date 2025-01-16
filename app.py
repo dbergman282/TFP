@@ -113,7 +113,7 @@ if uploaded_file:
                     st.session_state.full_logs.append(clean_log)
                     # Display only the latest logs (emulate auto-scroll)
                     log_display.markdown(
-                        f"<div class='log-container'>{'<br>'.join(st.session_state.full_logs[-30:])}</div>",
+                        f"<div class='log-container'>{'<br>'.join(st.session_state.full_logs[-100:])}</div>",
                         unsafe_allow_html=True
                     )
                 else:
