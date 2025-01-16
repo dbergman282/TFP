@@ -12,7 +12,30 @@ import sys
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 from ortools.sat.python import cp_model
+from ortools.linear_solver import pywraplp
 import numpy as np
+import pyomo.environ as pyo
+from pyomo.environ import (
+    ConcreteModel, Var, Objective, Constraint, NonNegativeIntegers, maximize,
+    SolverFactory
+)
+# import matplotlib.pyplot as plt
+# import
+def create_test_model():
+    # Create a concrete model
+    model = ConcreteModel()
+
+    # Define decision variables (integers >= 0)
+    model.x = Var(domain=NonNegativeIntegers)
+    model.y = Var(domain=NonNegativeIntegers)
+
+    # Objective: Maximize 3*x + 2*y
+    model.obj = Objective(expr=3 * model.x + 2 * model.y, sense=maximize)
+
+    # Constraint: x + 2*y <= 6
+    model.con = Constraint(expr=model.x + 2 * model.y <= 6)
+
+    return model
 
 class Optimizer:
     
@@ -26,15 +49,17 @@ class Optimizer:
 
     def prep_model(self):
         
+
         self.read_excel()
         self.get_n_people_and_n_competencies_and_n_teamAttr()
-        self.standardize_competencies()
+        # self.standardize_competencies()
         self.create_role_matrix()
         self.create_weights()
 
+
     def run_optimization(self):
 
-
+        
         self.run_model()
         sys.exit(1)
         self.test_model()
@@ -86,6 +111,22 @@ class Optimizer:
             self.scalers[teamAttr] = scaler
             
         # for team_attribute in s
+        
+    # Function to sample rows
+    def sample_rows(self,matrix):
+        indices = []
+        for col in range(matrix.shape[1]):
+            # Get the indices of rows where column 'col' is 1
+            valid_indices = np.where(matrix[:, col] == 1)[0]
+            
+            if len(valid_indices) == 0:
+                raise ValueError(f"No rows with a 1 in column {col}")
+            
+            # Randomly select one row index from the valid indices
+            selected_index = np.random.choice(valid_indices)
+            indices.append(selected_index)
+        
+        return indices
          
     def create_role_matrix(self):
         
@@ -134,34 +175,159 @@ class Optimizer:
         ### self.teamAttr_index[a]
         # sys.exit(1)
         
+    def generate_random_matrices(self,big_matrix, num_matrices, num_rows):
+        
+        num_cols = big_matrix.shape[1]
+        matrices_dict = {}
+    
+        for i in range(num_matrices):
+            random_matrix = np.zeros((num_rows, num_cols), dtype=int)
+    
+            for col in range(num_cols):
+                # Find all indices in the big matrix where the column has a 1
+                valid_indices = np.where(big_matrix[:, col] == 1)[0]
+    
+                if len(valid_indices) < num_rows:
+                    raise ValueError(f"Not enough valid rows in column {col} for the given number of rows.")
+    
+                # Randomly select 'num_rows' unique indices
+                selected_indices = np.random.choice(valid_indices, size=num_rows, replace=False)
+                random_matrix[:, col] = selected_indices  # Assign the selected indices to the column
+    
+            matrices_dict[i] = random_matrix
+    
+        return matrices_dict
+
+        
         
          
     def run_model(self):
         
-        model = cp_model.CpModel()
+        model= create_test_model()
+        solver = SolverFactory("cbc")  # or 'glpk', 'gurobi', etc.
+
+        # Solve the model
+        results = solver.solve(model, tee=True)
+        sys.exit(1)
+        
+        np.random.seed(123)
+        # self.role_weight = 100
+        # self.team_weight = 0
+
+        yield ""
+        yield "Running initial pool ... "
+        yield ""
+        # self.n_random = 1000
+        # self.rows = self.sample_rows(self.role_matrix)
+        # # Perform the sampling 1000 times
+        self.num_samples = 100000
+        self.random_matrices = self.generate_random_matrices(self.role_matrix, self.num_samples, self.n_people_per_team)
+
+        self.solution_values = []
+        self.bi_solution_values = []
+        self.results = []
+        for solution_index in range(self.num_samples):
+            if solution_index % 1000 == 0:
+                print("\t", solution_index)
+            solution = self.random_matrices[solution_index]
+            role_value,role_values,team_value,team_values = self.calculate_actual_value(solution)
+            solution_value = self.role_weight*role_value + self.team_weight*team_value
+            self.results.append([role_value,role_values,team_value,team_values])
+            self.solution_values.append(solution_value)
+            self.bi_solution_values.append([role_value,team_value])
+        
+        self.solution_values = np.array(self.solution_values)
+        self.bi_solution_values = np.array(self.bi_solution_values)
+        
+        self.mean_solution_value = np.mean(self.solution_values)
+        self.mean_bi_solution_values = np.mean(self.bi_solution_values,axis=0)
+        
+        self.var_solution_value = np.var(self.solution_values)
+        self.var_bi_solution_values = np.var(self.bi_solution_values,axis=0)
+        
+        self.calibrated_team_multiplier = self.mean_bi_solution_values[0]/self.mean_bi_solution_values[1]
+
+        self.solution_values_calibrated = self.bi_solution_values[:,0]*1 + self.bi_solution_values[:,1]*self.calibrated_team_multiplier
+        
+        self.bi_solution_values_calibrated = self.bi_solution_values.copy()
+        self.bi_solution_values_calibrated[:,1] = self.bi_solution_values_calibrated[:,1]*self.calibrated_team_multiplier
+        
+        # self.mean_individual_contribution_roles
+        
+        # self.calibrated_team_multiplier = self.mean_bi_solution_values[0]/self.mean_bi_solution_values[1]
+        yield f"\tCalibrated team multiplier:  {self.calibrated_team_multiplier}"
+        # self.calibrated_team_multiplier = self.calibrated_team_multiplier
+
+        # self.solution_values_calibrated = self.role_weight*self.bi_solution_values[:,0]*1 + self.team_weight*self.bi_solution_values[:,1]*self.calibrated_team_multiplier
+        
+        # sys.exit(1)
+        self.best_random_index = np.argmax(self.solution_values)
+        self.best_random_index_calibrated = np.argmax(self.solution_values_calibrated)
+        
+        yield "Completed intial pool"
+        # yield ""
+        # yield f"\tBest overall value (uncalibrated):  {self.solution_values[self.best_random_index]}"
+        # yield f"\t\tRole value:  {self.bi_solution_values[self.best_random_index][0]}"
+        # yield f"\t\tTeam value:  {self.bi_solution_values[self.best_random_index][1]}"
+        yield ""
+        yield f"\tBest overall value (calibrated):  {self.solution_values_calibrated[self.best_random_index_calibrated]}"
+        yield f"\t\tRole value:  {self.bi_solution_values[self.best_random_index_calibrated][0]}"
+        yield f"\t\tTeam value:  {self.bi_solution_values[self.best_random_index_calibrated][1]}"
+        yield ""
+        yield "Average metrics"
+        yield ""
+        yield f"\tMean overall value:  {self.mean_solution_value}"
+        yield f"\t\tRole value:  {self.mean_bi_solution_values[0]}"
+        yield f"\t\tTeam value:  {self.mean_bi_solution_values[1]}"
+        yield ""
+        sys.exit(1)
+        
+
+        self.mean_individual_contribution_roles = self.mean_bi_solution_values[0]/(self.n_teams*self.n_people_per_team)
+        self.mean_individual_contribution_teams = self.mean_bi_solution_values[1]/(self.n_teams*self.n_people_per_team)
+        # print(self.mean_individual_contribution_roles)
+        # print(self.mean_individual_contribution_teams)
+        # sys.exit(1)
+        # sys.exit(1)
+        
+        solver = pywraplp.Solver.CreateSolver('SCIP')
+        if not solver:
+            raise Exception("SCIP solver is not available.")
+        
+        
+        self.role_weight = 0
+        self.team_weight = 100
         
         persons = range(self.n_people)
         roles = range(self.n_people_per_team)
         teams = range(self.n_teams)
+        teamAttr = range(self.n_teamAttr)
         
         x = {}
+        ymax = {}
+        ymin = {}
+        
         for p in persons:
             for r in roles:
                 for t in teams:
-                    x[(p, r, t)] = model.NewBoolVar(f'x[{p},{r},{t}]')
+                    x[(p, r, t)] = solver.IntVar(0,1,f'x[{p},{r},{t}]')
                     if self.role_matrix[p,r] == 0:
-                        model.Add(x[(p, r, t)] == 0)
+                        solver.Add(x[(p, r, t)] == 0)
+        for t in teams:
+            for a in teamAttr:
+                ymax[(t,a)] = solver.IntVar(0,100,f'ymax[{t},{a}]')
+                ymin[(t,a)] = solver.IntVar(0,100,f'ymin[{t},{a}]')
 
         for p in persons:
-            model.Add(sum(x[(p, r, t)] for r in roles for t in teams) <= 1)
+            solver.Add(sum(x[(p, r, t)] for r in roles for t in teams) <= 1)
             
         for r in roles:
             for t in teams:
-                model.Add(sum(x[(p, r, t)] for p in persons) == 1)
+                solver.Add(sum(x[(p, r, t)] for p in persons) == 1)
           
         current_time = time.time()
         n_sols_found=0
-        max_val = 0
+        sys.exit(1)
         
         # self.solutions = []
         self.all_solutions = []
@@ -178,35 +344,124 @@ class Optimizer:
         while current_time - self.start_time < self.time_limit:
             
             if n_sols_found == 0:
-                rand_weight = 0.0
+                rand_multiplier = 0.0
             else:
                 # print("Current time: ", current_time)
-                rand_weight = (current_time - self.start_time)/self.time_limit
+                rand_multiplier = ((current_time - self.start_time)/self.time_limit)/10
                 # print("RAND WEIGHT: ", rand_weight)
             # print("\trandom weight: ", rand_weight)
             # print("\tmax val: ", max_val)
             # sys.exit(1)
        
             individual_efficacy = []
+            team_efficacy = []
+            
+            individual_efficacy = 0
+            team_efficacy = 0
+            
             for p in persons:
                 for r in roles:
                     for t in teams:
-                        individual_efficacy.append((self.individual_role_weights[p,r]*self.position_weights[r] + rand_weight*np.random.uniform(-1*max_val/(self.n_people_per_team*self.n_teams),max_val/(self.n_people_per_team*self.n_teams)))*x[(p, r, t)])
+                        random_weight = np.random.uniform(-1*rand_multiplier,rand_multiplier)
+                        individual_role_contribution = self.individual_role_weights[p,r]*self.position_weights[r]
+                        objective_term = random_weight*self.role_weight*self.mean_individual_contribution_roles + individual_role_contribution
+
+                        # print(random_weight*self.mean_individual_contribution_roles)
+                        # individual_efficacy.append(objective_term*x[(p, r, t)])
+                        individual_efficacy += objective_term*x[(p, r, t)]
+                        solver.Objective().SetCoefficient(x[(p, r, t)], objective_term)
+                        # individual_efficacy.append((self.individual_role_weights[p,r]*self.position_weights[r] + rand_weight*np.random.uniform(-1*max_val/(self.n_people_per_team*self.n_teams),max_val/(self.n_people_per_team*self.n_teams)))*x[(p, r, t)])
+                      
             
-            model.Maximize(sum(individual_efficacy))
+            for t in teams:
+                continue
+                for a in teamAttr:
+                    if self.teamAttr_index[a] == 'Moderate Mean': 
+                        continue
+                        # personal_team_weight += 0
+                        mean_expression = 0
+                        for p in persons:
+                            mean_expression += int(self.team_weight*self.teamAttr_weights[a]*self.individual_teamAttr_weights[p,a]*(1/self.n_people_per_team))*x[(p, r, t)]
+                        solver.Add(ymax[(t,a)] >= mean_expression-50)
+                        solver.Add(ymax[(t,a)] >= 50-mean_expression)
+                        team_efficacy.append(-1*ymax[(t,a)])
+                        print(mean_expression)
+
+                    elif self.teamAttr_index[a] == 'High Mean': 
+                        # print("HIGH MEAN")
+                        for p in persons:
+                            team_efficacy += self.calibrated_team_multiplier*self.teamAttr_weights[a]*self.individual_teamAttr_weights[p,a]*(1/self.n_people_per_team)*x[(p, r, t)]
+                            # team_efficacy.append(self.calibrated_team_multiplier*self.team_weight*self.teamAttr_weights[a]*self.individual_teamAttr_weights[p,a]*(1/self.n_people_per_team)*x[(p, r, t)])
+                            # team_efficacy.append(self.calibrated_team_multiplier*self.teamAttr_weights[a]*self.individual_teamAttr_weights[p,a]*(1/self.n_people_per_team)*x[(p, r, t)])
+                    elif self.teamAttr_index[a] == 'Low Mean':
+                        continue
+                        for p in persons:
+                            # print(self.team_weight)
+                            # print(self.teamAttr_weights[a])
+                            # print(self.individual_teamAttr_weights[p,a])
+                            # print(1/self.n_people_per_team)
+                            # term = int(self.team_weight*(-1)*self.teamAttr_weights[a]*self.individual_teamAttr_weights[p,a]*(1/self.n_people_per_team))
+                            # team_efficacy.append()
+                            # print(int(self.team_weight*(-1)*self.teamAttr_weights[a]*self.individual_teamAttr_weights[p,a]*(1/self.n_people_per_team)))
+                            team_efficacy.append(int(self.calibrated_team_multiplier*self.team_weight*(-1)*self.teamAttr_weights[a]*self.individual_teamAttr_weights[p,a]*(1/self.n_people_per_team))*x[(p, r, t)])
+                    elif self.teamAttr_index[a] == 'High Variance':
+                        # continue
+                        continue
+                        if np.random.rand() < 0.5:  
+                            team_efficacy.append(int(self.calibrated_team_multiplier*self.team_weight*self.teamAttr_weights[a]*self.individual_teamAttr_weights[p,a])*x[(p, r, t)])
+                        else:
+                            team_efficacy.append(int(self.calibrated_team_multiplier*self.team_weight*(-1)*self.teamAttr_weights[a]*self.individual_teamAttr_weights[p,a])*x[(p, r, t)])
+
+            
+            # for p in persons:
+            #     personal_team_weight = 0
+            #     for a in teamAttr:  
+            #         if self.teamAttr_index[a] == 'Moderate Mean': 
+            #             personal_team_weight += 0
+            #         elif self.teamAttr_index[a] == 'High Mean': 
+            #             personal_team_weight += self.individual_teamAttr_weights[p,a]
+            #         elif self.teamAttr_index[a] == 'Low Mean':
+            #             personal_team_weight += -1*self.individual_teamAttr_weights[p,a]
+            #         elif self.teamAttr_index[a] == 'High Variance':
+            #             if np.random.rand() < 0.5:    
+            #                 personal_team_weight += self.individual_teamAttr_weights[p,a]
+            #             else:
+            #                 personal_team_weight += -1*self.individual_teamAttr_weights[p,a]
+            #         else:
+            #             print("DID NOT UNDERSTAND ATTRIBUTE INDEX")
+            #     for r in roles:
+            #         for t in teams:  
+            #             team_efficacy.append(self.calibrated_team_multiplier*personal_team_weight*x[(p, r, t)])
+                
+            # full_objective = individual_efficacy + team_efficacy
+            # for var in full_objective:
+            #     solver.Objective().SetCoefficient(var, full_objective[var])  # Set the coefficient for each variable
+
+            # solver.Objective().SetLinearExpression(full_objective)
+            
+            solver.Objective().SetMaximization()
+            # print(individual_efficacy)
+            # sys.exit(1)
             # q = {(p, r, t): (p + 1) * (r + 1) * (t + 1) for p in persons for r in roles for t in teams}
             # model.Maximize(sum(q[(p, r, t)] * x[(p, r, t)] for p in persons for r in roles for t in teams))
         
             # Solve the model
-            solver = cp_model.CpSolver()
-            status = solver.Solve(model)    
+            # solver = cp_model.CpSolver()
+            # solver = pywraplp.Solver.CreateSolver('SCIP')
+            # Create the SCIP solver
             
-            if n_sols_found==0:
-                max_val = solver.ObjectiveValue()
             
-        
+            solver = pywraplp.Solver.CreateSolver('SCIP')
+            if not solver:
+                raise Exception("SCIP solver is not available.")
+            status = solver.Solve()    
+            print(status)
+            
+            # print(solver.ObjectiveValue())
+            # print(solver.Objective().Value())
+            # sys.exit(1)
             # Output the results
-            if status == cp_model.OPTIMAL:
+            if status == pywraplp.Solver.OPTIMAL:
                 
                 # print("\tobjective value: ", solver.ObjectiveValue())
                 # print("\tgetting solutions")
@@ -215,19 +470,17 @@ class Optimizer:
                 for t in teams:
                     for r in roles:
                         for p in persons:
-                            if solver.BooleanValue(x[(p, r, t)]):
+                            # if solver.BooleanValue(x[(p, r, t)]):
+                            if x[(p, r, t)].solution_value()>0.5:
                                 this_solution[t,r] = p
-                                # print("\t\t", f'Person {p} assigned to Role {r} on Team {t}')
+                                print("\t\t", f'Person {p} assigned to Role {r} on Team {t}')
+                sys.exit(1)
                 role_value,role_values,team_value,team_values = self.calculate_actual_value(this_solution)
-                # print("ROLE VAL")
-                # print(np.round(role_value,1))
-                # print("ROLE VALUES ")
-                # print(np.round(role_values,1))
-                # print("TEAM VAL ")
-                # print(np.round(team_value,1))
-                # print("TEAM VALUES")
-                # print(np.round(team_values,1))
-                solution_value = self.role_weight*role_value + self.n_teams*self.n_competencies*self.team_weight*team_value
+
+                # solution_value = self.role_weight*role_value + self.n_teams*self.n_competencies*self.team_weight*team_value
+                print(role_value)
+                print(team_value)
+                solution_value = self.role_weight*role_value + self.calibrated_team_multiplier*team_value
                 # print(solution_val)
                 self.all_solutions.append(this_solution)
                 self.all_role_values.append(role_values)
@@ -286,6 +539,7 @@ class Optimizer:
         role_values = np.zeros(self.n_teams)
         for t in teams:
             for r in roles:
+
                 p = int(solution[t,r])
                 role_values[t] += self.individual_role_weights[p,r]*self.position_weights[r]
         
@@ -305,7 +559,8 @@ class Optimizer:
                     # print(individual_vals[r])
                     individual_vals[r] = self.individual_teamAttr_weights[p,a]
                 if self.teamAttr_index[a] == 'Moderate Mean':
-                    val = np.mean(individual_vals)
+                    # val = np.mean(individual_vals)
+                    val = np.abs(50-np.mean(individual_vals))
                 elif self.teamAttr_index[a] == 'High Mean':
                     val = np.mean(individual_vals)
                 elif self.teamAttr_index[a] == 'Low Mean':
@@ -322,7 +577,7 @@ class Optimizer:
         # sys.exit(1)
         
         
-        return np.sum(role_values),role_values, np.sum(team_values), team_values
+        return np.mean(role_values),role_values, np.mean(team_values), team_values
         # sys.exit(1)
         
     def test_model(self):
@@ -368,7 +623,7 @@ class Optimizer:
 if __name__ == "__main__":
 
     
-    path_to_excel = "/Users/davidbergman/Library/CloudStorage/Dropbox/Workspace/ToolForTFP/2025/20250106_InputData_v2.xlsx"
+    path_to_excel = "/Users/davidbergman/Library/CloudStorage/Dropbox/Workspace/ToolForTFP/2025/20250114_InputData_v2_JM Real.xlsx"
     time_limit = 10
     n_teams = 3
     tfo = Optimizer(path_to_excel,time_limit,n_teams)
@@ -376,3 +631,4 @@ if __name__ == "__main__":
     # sys.exit(1)
     for step in tfo.run_model():
         print(step)
+    
