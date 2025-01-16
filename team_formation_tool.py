@@ -484,7 +484,7 @@ class Optimizer:
                     # if solver.BooleanValue(x[(p, r, t)]):
                     if model.x[p,r,t].value >0.5:
                         this_solution[t,r] = p
-                        # yield "\t\t", f'Person {p} assigned to Role {r} on Team {t}'
+                        yield "\t\t", f'Person {p} assigned to Role {r} on Team {t}'
                         # print("\t\t", f'Person {p} assigned to Role {r} on Team {t}')
                         # print("\t\t\t",p, " ", r, " " , t," " ,self.individual_teamAttr_weights[p,5])
         # sys.exit(1)
