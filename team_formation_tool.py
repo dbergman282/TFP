@@ -6,8 +6,8 @@ Created on Mon Jan  6 16:57:59 2025
 @author: davidbergman
 """
 
-import os
-os.environ["DYLD_LIBRARY_PATH"] = "/opt/anaconda3/envs/tfp/lib"
+#import os
+#os.environ["DYLD_LIBRARY_PATH"] = "/opt/anaconda3/envs/tfp/lib"
 
 import time
 import sys
@@ -21,7 +21,7 @@ from pyomo.environ import (
     ConcreteModel, Var, Objective, Constraint, NonNegativeIntegers, maximize,
     SolverFactory, Binary, ConstraintList, NonNegativeReals
 )
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 # import
 def create_test_model():
     # Create a concrete model
