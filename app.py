@@ -12,7 +12,7 @@ st.set_page_config(
 
 # Title and description
 st.title("Team Formation Tool")
-st.write("Upload Excel file, view its data, and perform optimization.")
+st.write("Upload Excel file, view its data, and perform optimization.  Created by John Mathieu and David Bergman, University of Connecitcut.")
 
 # Initialize session state for logs
 if "full_logs" not in st.session_state:
