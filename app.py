@@ -151,8 +151,27 @@ if uploaded_file:
 
         # Generate and display the plot
         st.write("### Plot of Optimization Results")
-        plot_buffer = optimizer.create_plot()  # Call the plot creation method
-        st.image(plot_buffer,width=200)
+        
+        # Generate the plot buffer
+        plot_buffer = optimizer.create_plot()
+        
+        # Center the image with st.image
+        st.markdown(
+            """
+            <style>
+            .centered-image {
+                display: flex;
+                justify-content: center;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+        
+        st.markdown('<div class="centered-image">', unsafe_allow_html=True)
+        st.image(plot_buffer, width=600)
+        st.markdown('</div>', unsafe_allow_html=True)
+
 
         # You can also display other JSON results or final parameters
         # st.json({
