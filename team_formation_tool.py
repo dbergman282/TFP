@@ -285,6 +285,8 @@ class Optimizer:
         
         self.mean_solution_value = np.mean(self.solution_values)
         self.mean_bi_solution_values = np.mean(self.bi_solution_values,axis=0)
+        self.sd_solution_value = np.std(self.solution_values)
+        self.sd_bi_solution_values = np.std(self.bi_solution_values,axis=0)
         
         self.var_solution_value = np.var(self.solution_values)
         self.var_bi_solution_values = np.var(self.bi_solution_values,axis=0)
@@ -297,11 +299,11 @@ class Optimizer:
         
         self.bi_solution_values_calibrated = self.bi_solution_values.copy()
         self.bi_solution_values_calibrated[:,1] = self.bi_solution_values_calibrated[:,1]*self.calibrated_team_multiplier
-        
+
         yield "\nAverage metrics in random solutions: \n"
-        yield f"\tMean overall value:  {np.round(self.mean_solution_value,2)}"
-        yield f"\t\tRole value:  {np.round(self.mean_bi_solution_values[0],2)}"
-        yield f"\t\tTeam value:  {np.round(self.mean_bi_solution_values[1],2)}\n"
+        yield f"\tMean overall value:  {np.round(self.mean_solution_value,2)} (np.round(self.sd_solution_value,2))"
+        yield f"\t\tRole value:  {np.round(self.mean_bi_solution_values[0],2)}  (np.round(self.sd_bi_solution_values[0],2))"
+        yield f"\t\tTeam value:  {np.round(self.mean_bi_solution_values[1],2)}  (np.round(self.sd_bi_solution_values[0],2)) \n"
         
         yield "\tMaximum individual metrics in random solutions:"
         yield f"\t\tRole value:  {np.round(np.max(self.bi_solution_values[:,0]))}"
