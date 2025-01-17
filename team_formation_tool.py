@@ -446,7 +446,8 @@ class Optimizer:
                 
 
         model.obj = Objective(expr=objective_expr, sense=maximize)
-        solver = SolverFactory("cbc",executable='/opt/anaconda3/pkgs/coincbc-2.10.5-h35dd71c_1/bin/cbc')  # or 'glpk', 'gurobi', etc.
+        #solver = SolverFactory("cbc",executable='/opt/anaconda3/pkgs/coincbc-2.10.5-h35dd71c_1/bin/cbc')  # or 'glpk', 'gurobi', etc.
+        solver = SolverFactory("cbc")  # or 'glpk', 'gurobi', etc.
         solver.options['sec'] = self.time_limit
         
         yield "\tSolving model (searching for solutions) ... \n"
