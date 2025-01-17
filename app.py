@@ -152,7 +152,7 @@ if uploaded_file:
         # Generate and display the plot
         st.write("### Plot of Optimization Results")
         plot_buffer = optimizer.create_plot()  # Call the plot creation method
-        st.image(plot_buffer, use_container_width=True, width=500)
+        st.image(plot_buffer, use_container_width=True, width=200)
 
         # You can also display other JSON results or final parameters
         # st.json({
