@@ -303,7 +303,7 @@ class Optimizer:
         yield "\nAverage metrics in random solutions: \n"
         yield f"\tMean overall value:  {np.round(self.mean_solution_value,2)} ({np.round(self.sd_solution_value,2)})"
         yield f"\t\tRole value:  {np.round(self.mean_bi_solution_values[0],2)}  ({np.round(self.sd_bi_solution_values[0],2)})"
-        yield f"\t\tTeam value:  {np.round(self.mean_bi_solution_values[1],2)}  ({np.round(self.sd_bi_solution_values[0],2)}) \n"
+        yield f"\t\tTeam value:  {np.round(self.mean_bi_solution_values[1],2)}  ({np.round(self.sd_bi_solution_values[1],2)}) \n"
         
         yield "\tMaximum individual metrics in random solutions:"
         yield f"\t\tRole value:  {np.round(np.max(self.bi_solution_values[:,0]))}"
