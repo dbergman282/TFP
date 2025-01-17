@@ -23,6 +23,43 @@ from pyomo.environ import (
 )
 #import matplotlib.pyplot as plt
 # import
+
+import matplotlib.pyplot as plt
+import io
+
+def create_plot(self):
+    # Generate the plot
+    plt.scatter(
+        self.bi_solution_values[:, 0], 
+        self.bi_solution_values[:, 1], 
+        color='blue', 
+        alpha=0.6,  # Slight fade using alpha
+        label="Random Solution"
+    )
+
+    plt.scatter(
+        self.role_value, 
+        self.team_value, 
+        color='orange', 
+        s=100,  # Make it slightly larger for emphasis
+        label="Optimized Solution"
+    )
+    
+    plt.title("Full Composition Results per Solution")
+    plt.xlabel("Role Value (sum)")
+    plt.ylabel("Team Value (sum)")
+    plt.ticklabel_format(style='scientific', axis='both', scilimits=(-1, 1))
+    plt.legend()
+
+    # Save the plot to a BytesIO buffer
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png')
+    buf.seek(0)
+    plt.close()
+    return buf
+
+
+
 def create_test_model():
     # Create a concrete model
     model = ConcreteModel()
@@ -508,7 +545,8 @@ class Optimizer:
         index_labels = ['Team_' + str(x+1) for x in range(self.n_teams)]
         column_labels = self.data_dict['Individual Roles Allowed'].columns
         
-        
+        self.role_value = role_value 
+        self.team_value = team_value
         
         solution_df = pd.DataFrame(data=best_solution, index=index_labels, columns=column_labels)
         self.solution_df = solution_df
