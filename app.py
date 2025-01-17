@@ -149,6 +149,11 @@ if uploaded_file:
         else:
             st.write("No results to display yet. Make sure `run_model()` returns or yields a DataFrame.")
 
+        # Generate and display the plot
+        st.write("### Plot of Optimization Results")
+        plot_buffer = optimizer.create_plot()  # Call the plot creation method
+        st.image(plot_buffer, caption="Optimization Results", use_column_width=True)
+
         # You can also display other JSON results or final parameters
         # st.json({
         #     "optimized_value_1": optimizer.param1,
